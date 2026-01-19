@@ -8,6 +8,7 @@ SCREEN_WIDTH = 800
 SCREEN_HEIGHT = 600
 VOLUME = 100
 FULL_SCREEN = False
+TITLE = 'Game'  # Потом заменить имя приложения
 
 
 class OptionsScene(ar.View):
@@ -27,11 +28,11 @@ class OptionsScene(ar.View):
             align='center',
             text_color=ar.color.WHITE
         )
-        self.volume_label = UILabel(
+        volume_label = UILabel(
             text='Громкость звука',
             x=160 * scale,
             y=450 * scale,
-            height=41 * scale,
+            height=20 * scale,
             width=171 * scale,
             font_size=20 * scale,
             align='left',
@@ -41,7 +42,7 @@ class OptionsScene(ar.View):
             text='Разрешение',
             x=160 * scale,
             y=360 * scale,
-            height=41 * scale,
+            height=20 * scale,
             width=171 * scale,
             font_size=20 * scale,
             align='left',
@@ -51,13 +52,13 @@ class OptionsScene(ar.View):
             text='Полный экран',
             x=160 * scale,
             y=270 * scale,
-            height=41 * scale,
+            height=20 * scale,
             width=171 * scale,
             font_size=20 * scale,
             align='left',
             text_color=ar.color.WHITE
         )
-        slider_label = UILabel(
+        self.slider_label = UILabel(
             text='100',
             x=544 * scale,
             y=460 * scale,
@@ -79,7 +80,7 @@ class OptionsScene(ar.View):
         )
         self.resolution_button = UIDropdown(
             x=464 * scale,
-            y=430 * scale,
+            y=360 * scale,
             width=171 * scale,
             height=22 * scale,
             options=[
@@ -89,12 +90,12 @@ class OptionsScene(ar.View):
                 '2560:1440',
                 '3840:2160'
             ],
-            default='800:600'
+            default=f'{SCREEN_WIDTH}:{SCREEN_HEIGHT}'
         )
         self.full_screen_button = UIDropdown(
-            x=464 * scale,
+            x=530 * scale,
             y=270 * scale,
-            width=20 * scale,
+            width=40 * scale,
             height=20 * scale,
             options=[
                 'Да',
@@ -106,12 +107,12 @@ class OptionsScene(ar.View):
         self.resolution_button.on_change = self.resolution_change
         self.full_screen_button.on_change = self.full_screen_change
         self.manager.add(options_label)
-        self.manager.add(slider_label)
         self.manager.add(resolution_label)
+        self.manager.add(volume_label)
         self.manager.add(full_screen_label)
+        self.manager.add(self.slider_label)
         self.manager.add(self.slider)
         self.manager.add(self.full_screen_button)
-        self.manager.add(self.volume_label)
         self.manager.add(self.resolution_button)
 
     def on_draw(self) -> bool | None:
@@ -126,13 +127,13 @@ class OptionsScene(ar.View):
 
     def volume_change(self, event):
         global VOLUME
-        VOLUME = self.slider.value
-        self.volume_label.text = str(self.slider.value)
+        VOLUME = int(self.slider.value)
+        self.slider_label.text = str(VOLUME)
 
     def resolution_change(self, event):
         global SCREEN_HEIGHT, SCREEN_WIDTH
         SCREEN_WIDTH, SCREEN_HEIGHT = [int(i) for i in self.resolution_button.value.split(':')]
-        self.window.on_resize(SCREEN_WIDTH, SCREEN_HEIGHT)
+        self.window.on_resize(0, 0)
 
     def full_screen_change(self, event):
         self.window.set_fullscreen(self.full_screen_button.value == 'ДА')
@@ -202,11 +203,15 @@ class FirstScene(ar.View):
 
 class Game(ar.Window):
     def __init__(self):
-        super().__init__(SCREEN_WIDTH, SCREEN_HEIGHT, 'Game')  # Потом заменить имя приложения
+        super().__init__(SCREEN_WIDTH, SCREEN_HEIGHT, TITLE, resizable=True)
         self.first_scene = FirstScene(self)
         self.options_view = OptionsScene(self)
         self.show_view_new(self.first_scene)
         self.sub_view = self.first_scene
+        self.on_resize_old = self.on_resize
+
+    def on_resize(self, width: int, height: int) -> EVENT_HANDLE_STATE:
+        self.on_resize_old(SCREEN_WIDTH, SCREEN_HEIGHT)
 
     def show_view_new(self, new_view: View) -> None:
         self.sub_view = self.view
