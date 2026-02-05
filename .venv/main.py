@@ -2,6 +2,7 @@ import random
 
 import arcade as ar
 from PIL import Image, ImageDraw
+from PIL.ImageOps import scale
 from arcade import View
 from arcade.gui import UIManager, UIFlatButton, UILabel, UIDropdown, UISlider, UITextureButton
 from pyglet.event import EVENT_HANDLE_STATE
@@ -39,6 +40,36 @@ class OptionsScene(ar.View):
             width=171 * self.scale_y,
             font_size=20 * self.scale_y,
             align='left',
+            text_color=ar.color.WHITE
+        )
+        self.main_button = UIFlatButton(
+            text='Выйти в главное меню',
+            x=50 * scale,
+            y=200 * scale,
+            height=40,
+            width=250,
+            font_size=20 * scale,
+            align='center',
+            text_color=ar.color.WHITE
+        )
+        self.random_color_background = UIFlatButton(
+            text='Сменить цвет фона',
+            x=350 * scale,
+            y=200 * scale,
+            height=40,
+            width=160,
+            font_size=20 * scale,
+            align='center',
+            text_color=ar.color.WHITE,
+        )
+        self.set_default_color = UIFlatButton(
+            text='Начальный фон',
+            x=600 * scale,
+            y=200 * scale,
+            height=40,
+            width=150,
+            font_size=20 * scale,
+            align='center',
             text_color=ar.color.WHITE
         )
         resolution_label = UILabel(
@@ -118,10 +149,16 @@ class OptionsScene(ar.View):
         self.slider.on_change = self.volume_change
         self.resolution_button.on_change = self.resolution_change
         self.full_screen_button.on_change = self.full_screen_change
+        self.main_button.on_click = self.go_to_main_menu
+        self.random_color_background.on_click = self.set_random_color
+        self.set_default_color.on_click = self.set_color_default
         self.exit_button.on_click = self.escape
         self.manager.add(options_label)
+        self.manager.add(self.set_default_color)
         self.manager.add(resolution_label)
         self.manager.add(volume_label)
+        self.manager.add(self.random_color_background)
+        self.manager.add(self.main_button)
         self.manager.add(full_screen_label)
         self.manager.add(self.slider_label)
         self.manager.add(self.slider)
@@ -153,10 +190,16 @@ class OptionsScene(ar.View):
             self.window.show_view_new(self.window.sub_view(self.window))
         return True
 
+    def set_color_default(self, event):
+        self.background_color = ar.color.BLUE_SAPPHIRE
+
     def volume_change(self, event):
         global volume
         volume = int(self.slider.value)
         self.slider_label.text = str(volume)
+
+    def set_random_color(self, event):
+        self.background_color = (random.randint(0, 255), random.randint(0, 255), random.randint(0, 255))
 
     def resolution_change(self, event):
         global screen_height, screen_width
@@ -181,6 +224,9 @@ class OptionsScene(ar.View):
                 i.font_size = i.font_size * self.scale
             except Exception:
                 pass'''
+
+    def go_to_main_menu(self, event):
+        self.window.show_view_new(self.window.first_scene)
 
     def full_screen_change(self, event):
         global screen_height, screen_width
@@ -376,6 +422,11 @@ class Game(ar.Window):
         self.sub_view = self.first_scene.__class__
         self.pres_view = self.first_scene.__class__
         self.show_view_new(self.first_scene)
+        self.sub_view = self.first_scene
+        self.on_resize_old = self.on_resize
+
+#    def on_resize(self, width: int, height: int) -> EVENT_HANDLE_STATE:
+#        self.on_resize_old(SCREEN_WIDTH, SCREEN_HEIGHT)
 
     def show_view_new(self, new_view: View) -> None:
         self.sub_view = self.pres_view
