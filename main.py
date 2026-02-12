@@ -10,12 +10,12 @@ screen_width = 800
 screen_height = 600
 volume = 100
 full_screen = False
-TITLE = 'Game'  # Потом заменить имя приложения
+TITLE = 'The Underworld'  # Потом заменить имя приложения
 
 
 class OptionsScene(ar.View):
     def __init__(self, window):
-        super().__init__(window, ar.color.BLUE_SAPPHIRE)# Поменять цвет на фон
+        super().__init__(window, ar.color.BLUE_SAPPHIRE)  # Поменять цвет на фон
         global screen_width, screen_height
         self.scale_x, self.scale_y = screen_width / 800, screen_height / 600
         self.window = window
@@ -159,6 +159,7 @@ class OptionsScene(ar.View):
         self.slider_label.text = str(volume)
 
     def resolution_change(self, event):
+        import screeninfo
         global screen_height, screen_width
         self.scale_x, self.scale_y = ([int(i) for i in self.resolution_button.value.split(':')][0] / screen_width,
                                       [int(i) for i in self.resolution_button.value.split(':')][1] / screen_height)
@@ -167,6 +168,8 @@ class OptionsScene(ar.View):
         self.window.set_size(screen_width, screen_height)
         self.window.options_view = OptionsScene(self.window)
         self.window.show_view(self.window.options_view)
+        monitor = screeninfo.get_monitors()[0].width, screeninfo.get_monitors()[0].height
+        self.window.set_location(monitor[0] // 2 - screen_width // 2, monitor[1] // 2 - screen_height // 2)
         '''return
         global screen_height, screen_width
         self.scale_x, self.scale_y = ([int(i) for i in self.resolution_button.value.split(':')][0] / screen_width,
@@ -223,15 +226,172 @@ class OptionsScene(ar.View):
         self.window.set_fullscreen(self.full_screen_button.value == 'Да')'''
 
 
+class Player(ar.Sprite):
+    def __init__(self, x, y):
+        super().__init__(center_x=x, center_y=y)
+        self.texture = ar.load_texture('1')  # Заменить на имя файла
+        self.textures = [ar.load_texture('1') for i in range(1)]  # Заменить имя файла и количество
+        self.speed = 1  # Заменить на скорость
+
+
+class Enemy(ar.Sprite):
+    def __init__(self, x, y):
+        super().__init__(center_x=x, center_y=y)
+        self.texture = ar.load_texture('1')  # Заменить на имя файла
+        self.textures = [ar.load_texture('1') for i in range(1)]  # Заменить имя файла и количество
+        self.speed = 1  # Заменить на скорость
+
+
+class GameView(ar.View):
+    def __init__(self, window):
+        super().__init__(window)
+        from random import randint
+        self.window = window
+        self.window.playing = True
+        self.world = [[None] * 80 for _ in range(15)]
+        self.ground = 4
+        self.mud_block = ar.load_texture('textures/blocks/mud_block.png')
+        self.betone_block = ar.load_texture('textures/blocks/betone_block.png')
+        self.down_to_right_tube = ar.load_texture('textures/blocks/down_to_right_tube.png')
+        self.left_to_down_tube = ar.load_texture('textures/blocks/left_to_down_tube.png')
+        self.left_tube = ar.load_texture('textures/blocks/left_tube.png')
+        self.gor_tube = ar.load_texture('textures/blocks/gor_tube.png')
+        self.right_tube = ar.load_texture('textures/blocks/right_tube.png')
+        self.blocks = ar.SpriteList()
+        for i in range(self.ground):
+            for j in range(80):
+                sprite = ar.Sprite(center_x=(j + 1) * (40 * screen_width / 800) - (20 * screen_width / 800),
+                                   center_y=(i + 1) * (40 * screen_width / 800) - (20 * screen_width / 800) + (
+                                           screen_height - 600 * (screen_width / 800)),
+                                   scale=(screen_width / 800 * 40) / 64)
+                sprite.texture = self.mud_block
+                self.world[14 - i][j] = sprite
+                self.blocks.append(sprite)
+        for j in range(80):
+            i = self.ground
+            sprite = ar.Sprite(center_x=(j + 1) * (40 * screen_width / 800) - (20 * screen_width / 800),
+                               center_y=(i + 1) * (40 * screen_width / 800) - (20 * screen_width / 800) + (
+                                       screen_height - 600 * (screen_width / 800)),
+                               scale=(screen_width / 800 * 40) / 64)
+            sprite.texture = self.betone_block
+            self.world[14 - i][j] = sprite
+            self.blocks.append(sprite)
+        self.hills = ((randint(0, 9), randint(30, 39)), (randint(40, 49), randint(70, 79)))
+        self.hills1 = []
+        a = randint(1, 2)
+        for i in range(a):
+            if i:
+                self.hills1.append(tuple(sorted((randint(self.hills[0][1] // a + 1, self.hills[0][1] - 1),
+                                                 randint(self.hills[0][1] // a + 1, self.hills[0][1] - 1)))))
+            else:
+                self.hills1.append(tuple(sorted((randint(self.hills[0][0] + 1,
+                                                         self.hills[0][1] - self.hills[0][0] // a + \
+                                                         self.hills[0][0] - 1),
+                                                 randint(self.hills[0][0] + 1,
+                                                         self.hills[0][1] - self.hills[0][0] // a + \
+                                                         self.hills[0][0] - 1)))))
+        a = randint(1, 2)
+        for i in range(a):
+            if i:
+                self.hills1.append(tuple(sorted((randint(self.hills[1][1] // a + 1, self.hills[1][1] - 1),
+                                                 randint(self.hills[1][1] // a + 1, self.hills[1][1] - 1)))))
+            else:
+                self.hills1.append(tuple(sorted((randint(self.hills[1][0] + 1,
+                                                         self.hills[1][1] - self.hills[1][0] // a + \
+                                                         self.hills[1][0] - 1),
+                                                 randint(self.hills[1][0] + 1,
+                                                         self.hills[1][1] - self.hills[0][0] // a + \
+                                                         self.hills[1][0] - 1)))))
+        self.hills1 = tuple(self.hills1)
+        self.hills2 = []
+        for i in self.hills1:
+            if i[0] - i[1] < 3:
+                continue
+            if randint(0, 1):
+                self.hills2.append(tuple(sorted((randint(self.hills[1][0] + 1, self.hills[1][1] // a - 1),
+                                                 randint(self.hills[1][0] + 1, self.hills[1][1] // a - 1)))))
+        self.hills2 = tuple(self.hills2)
+        for i in self.hills:
+            for j in range(i[0], i[1] + 1):
+                if j == i[0] or j == i[1]:
+                    gr = self.ground
+                    sprite = ar.Sprite(center_x=(j + 1) * (40 * screen_width / 800) - (20 * screen_width / 800),
+                                       center_y=(gr + 1) * (40 * screen_width / 800) - (20 * screen_width / 800) + (
+                                               screen_height - 600 * (screen_width / 800)),
+                                       scale=(screen_width / 800 * 40) / 64)
+                    sprite.texture = self.betone_block
+                    self.world[14 - self.ground - 1][j] = sprite
+                    self.blocks.append(sprite)
+                else:
+                    gr = self.ground
+                    sprite = ar.Sprite(center_x=(j + 1) * (40 * screen_width / 800) - (20 * screen_width / 800),
+                                       center_y=(gr + 1) * (40 * screen_width / 800) - (20 * screen_width / 800) + (
+                                               screen_height - 600 * (screen_width / 800)),
+                                       scale=(screen_width / 800 * 40) / 64)
+                    sprite.texture = self.mud_block
+                    self.world[14 - self.ground - 1][j] = sprite
+                    self.blocks.append(sprite)
+        for i in self.hills1:
+            for j in range(i[0], i[1] + 1):
+                if j == i[0] or j == i[1]:
+                    gr = self.ground
+                    sprite = ar.Sprite(center_x=(j + 1) * (40 * screen_width / 800) - (20 * screen_width / 800),
+                                       center_y=(gr + 1) * (40 * screen_width / 800) - (20 * screen_width / 800) + (
+                                               screen_height - 600 * (screen_width / 800)),
+                                       scale=(screen_width / 800 * 40) / 64)
+                    sprite.texture = self.betone_block
+                    self.world[14 - self.ground - 1][j] = sprite
+                    self.blocks.append(sprite)
+                else:
+                    gr = self.ground
+                    sprite = ar.Sprite(center_x=(j + 1) * (40 * screen_width / 800) - (20 * screen_width / 800),
+                                       center_y=(gr + 1) * (40 * screen_width / 800) - (20 * screen_width / 800) + (
+                                               screen_height - 600 * (screen_width / 800)),
+                                       scale=(screen_width / 800 * 40) / 64)
+                    sprite.texture = self.mud_block
+                    print(j)
+                    self.world[14 - self.ground - 2][j] = sprite
+                    self.blocks.append(sprite)
+        for i in self.hills2:
+            for j in range(i[0], i[1] + 1):
+                if j == i[0] or j == i[1]:
+                    gr = self.ground
+                    sprite = ar.Sprite(center_x=(j + 1) * (40 * screen_width / 800) - (20 * screen_width / 800),
+                                       center_y=(gr + 1) * (40 * screen_width / 800) - (20 * screen_width / 800) + (
+                                               screen_height - 600 * (screen_width / 800)),
+                                       scale=(screen_width / 800 * 40) / 64)
+                    sprite.texture = self.betone_block
+                    self.world[14 - self.ground - 1][j] = sprite
+                    self.blocks.append(sprite)
+                else:
+                    gr = self.ground
+                    sprite = ar.Sprite(center_x=(j + 1) * (40 * screen_width / 800) - (20 * screen_width / 800),
+                                       center_y=(gr + 1) * (40 * screen_width / 800) - (20 * screen_width / 800) + (
+                                               screen_height - 600 * (screen_width / 800)),
+                                       scale=(screen_width / 800 * 40) / 64)
+                    sprite.texture = self.mud_block
+                    self.world[14 - self.ground - 3][j] = sprite
+                    self.blocks.append(sprite)
+
+    def on_draw(self) -> bool | None:
+        self.clear()
+        self.blocks.draw()
+
+    def on_key_press(self, symbol: int, modifiers: int) -> bool | None:
+        if symbol == ar.key.ESCAPE:
+            self.window.show_view_new(FirstScene(self.window))
+        return True
+
+
 class FirstScene(ar.View):
     def __init__(self, window):
-        super().__init__(window, ar.color.BLUE_SAPPHIRE) # Поменять цвет на фон\
+        super().__init__(window, ar.color.BLUE_SAPPHIRE)  # Поменять цвет на фон\
         global screen_height, screen_width
         self.scale_x, self.scale_y = screen_width / 800, screen_height / 600
         self.manager = UIManager()
         self.manager.enable()
         main_menu_label = UILabel(
-            text="Главное Меню",
+            text=TITLE,
             font_size=30 * self.scale_y,
             text_color=ar.color.WHITE,
             width=400 * self.scale_x,
@@ -270,6 +430,7 @@ class FirstScene(ar.View):
         exit_button.on_click = self.exit
         options_button.on_click = self.options
         autors_button.on_click = self.autors
+        play_button.on_click = self.play
         self.manager.add(main_menu_label)
         self.manager.add(play_button)
         self.manager.add(options_button)
@@ -290,6 +451,17 @@ class FirstScene(ar.View):
 
     def autors(self, event):
         self.window.show_view_new(AutorsScene(self.window))
+
+    def play(self, event):
+        self.window.show_view_new(GameView(self.window))
+
+    def on_key_press(self, symbol: int, modifiers: int) -> bool | None:
+        if symbol == ar.key.ESCAPE:
+            if self.window.playing:
+                self.window.show_view_new(GameView(self.window))
+                return True
+            self.exit(1)
+        return True
 
 
 class AutorsScene(ar.View):
@@ -370,12 +542,13 @@ class AutorsScene(ar.View):
 class Game(ar.Window):
 
     def __init__(self):
-        super().__init__(screen_width, screen_height, TITLE)
-        self.first_scene = FirstScene(self)
-        self.options_view = OptionsScene(self)
-        self.sub_view = self.first_scene.__class__
-        self.pres_view = self.first_scene.__class__
-        self.show_view_new(self.first_scene)
+        import screeninfo
+        super().__init__(screen_width, screen_height, TITLE,
+                         style=ar.Window.WINDOW_STYLE_BORDERLESS, center_window=True)
+        self.playing = False
+        self.sub_view = FirstScene
+        self.pres_view = FirstScene
+        self.show_view_new(FirstScene(self))
 
     def show_view_new(self, new_view: View) -> None:
         self.sub_view = self.pres_view
