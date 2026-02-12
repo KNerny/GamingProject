@@ -245,7 +245,7 @@ class Enemy(ar.Sprite):
 class GameView(ar.View):
     def __init__(self, window):
         super().__init__(window)
-        from random import randint
+        from random import randint, random
         self.window = window
         self.window.playing = True
         self.world = [[None] * 80 for _ in range(15)]
@@ -260,117 +260,83 @@ class GameView(ar.View):
         self.blocks = ar.SpriteList()
         for i in range(self.ground):
             for j in range(80):
-                sprite = ar.Sprite(center_x=(j + 1) * (40 * screen_width / 800) - (20 * screen_width / 800),
-                                   center_y=(i + 1) * (40 * screen_width / 800) - (20 * screen_width / 800) + (
-                                           screen_height - 600 * (screen_width / 800)),
-                                   scale=(screen_width / 800 * 40) / 64)
-                sprite.texture = self.mud_block
-                self.world[14 - i][j] = sprite
-                self.blocks.append(sprite)
+                self.world[14 - i][j] = self.mud_block
         for j in range(80):
             i = self.ground
-            sprite = ar.Sprite(center_x=(j + 1) * (40 * screen_width / 800) - (20 * screen_width / 800),
-                               center_y=(i + 1) * (40 * screen_width / 800) - (20 * screen_width / 800) + (
-                                       screen_height - 600 * (screen_width / 800)),
-                               scale=(screen_width / 800 * 40) / 64)
-            sprite.texture = self.betone_block
-            self.world[14 - i][j] = sprite
-            self.blocks.append(sprite)
+            self.world[14 - i][j] = self.betone_block
         self.hills = ((randint(0, 9), randint(30, 39)), (randint(40, 49), randint(70, 79)))
         self.hills1 = []
         a = randint(1, 2)
         for i in range(a):
             if i:
-                self.hills1.append(tuple(sorted((randint(self.hills[0][1] // a + 1, self.hills[0][1] - 1),
-                                                 randint(self.hills[0][1] // a + 1, self.hills[0][1] - 1)))))
+                self.hills1.append(tuple(sorted((randint((self.hills[0][1] - self.hills[0][0]) // a + \
+                                                         self.hills[0][0] - 1, self.hills[0][1] - 1),
+                                                 randint((self.hills[0][1] - self.hills[0][0]) // a + \
+                                                         self.hills[0][0] - 1, self.hills[0][1] - 1)))))
             else:
                 self.hills1.append(tuple(sorted((randint(self.hills[0][0] + 1,
-                                                         self.hills[0][1] - self.hills[0][0] // a + \
+                                                         (self.hills[0][1] - self.hills[0][0]) // a + \
                                                          self.hills[0][0] - 1),
                                                  randint(self.hills[0][0] + 1,
-                                                         self.hills[0][1] - self.hills[0][0] // a + \
+                                                         (self.hills[0][1] - self.hills[0][0]) // a + \
                                                          self.hills[0][0] - 1)))))
         a = randint(1, 2)
         for i in range(a):
             if i:
-                self.hills1.append(tuple(sorted((randint(self.hills[1][1] // a + 1, self.hills[1][1] - 1),
-                                                 randint(self.hills[1][1] // a + 1, self.hills[1][1] - 1)))))
+                self.hills1.append(tuple(sorted((randint((self.hills[1][1] - self.hills[1][0]) // a + \
+                                                         self.hills[1][0] - 1, self.hills[1][1] - 1),
+                                                 randint((self.hills[1][1] - self.hills[1][0]) // a + \
+                                                         self.hills[1][0] - 1, self.hills[1][1] - 1)))))
             else:
                 self.hills1.append(tuple(sorted((randint(self.hills[1][0] + 1,
-                                                         self.hills[1][1] - self.hills[1][0] // a + \
+                                                         (self.hills[1][1] - self.hills[1][0]) // a + \
                                                          self.hills[1][0] - 1),
                                                  randint(self.hills[1][0] + 1,
-                                                         self.hills[1][1] - self.hills[0][0] // a + \
+                                                         (self.hills[1][1] - self.hills[1][0]) // a + \
                                                          self.hills[1][0] - 1)))))
         self.hills1 = tuple(self.hills1)
         self.hills2 = []
         for i in self.hills1:
-            if i[0] - i[1] < 3:
+            if i[1] - i[0] < 3:
                 continue
-            if randint(0, 1):
-                self.hills2.append(tuple(sorted((randint(self.hills[1][0] + 1, self.hills[1][1] // a - 1),
-                                                 randint(self.hills[1][0] + 1, self.hills[1][1] // a - 1)))))
+            if random() <= 0.7:
+                self.hills2.append(tuple(sorted((randint(i[0] + 1, i[1]), randint(i[0] + 1, i[1])))))
         self.hills2 = tuple(self.hills2)
         for i in self.hills:
             for j in range(i[0], i[1] + 1):
-                if j == i[0] or j == i[1]:
-                    gr = self.ground
-                    sprite = ar.Sprite(center_x=(j + 1) * (40 * screen_width / 800) - (20 * screen_width / 800),
-                                       center_y=(gr + 1) * (40 * screen_width / 800) - (20 * screen_width / 800) + (
-                                               screen_height - 600 * (screen_width / 800)),
-                                       scale=(screen_width / 800 * 40) / 64)
-                    sprite.texture = self.betone_block
-                    self.world[14 - self.ground - 1][j] = sprite
-                    self.blocks.append(sprite)
+                if self.hills1[self.hills.index(i)][0] <= j <= self.hills1[self.hills.index(i)][1]:
+                    self.world[14 - self.ground - 1][j] = self.mud_block
                 else:
-                    gr = self.ground
-                    sprite = ar.Sprite(center_x=(j + 1) * (40 * screen_width / 800) - (20 * screen_width / 800),
-                                       center_y=(gr + 1) * (40 * screen_width / 800) - (20 * screen_width / 800) + (
-                                               screen_height - 600 * (screen_width / 800)),
-                                       scale=(screen_width / 800 * 40) / 64)
-                    sprite.texture = self.mud_block
-                    self.world[14 - self.ground - 1][j] = sprite
-                    self.blocks.append(sprite)
+                    self.world[14 - self.ground - 1][j] = self.betone_block
         for i in self.hills1:
             for j in range(i[0], i[1] + 1):
-                if j == i[0] or j == i[1]:
-                    gr = self.ground
-                    sprite = ar.Sprite(center_x=(j + 1) * (40 * screen_width / 800) - (20 * screen_width / 800),
-                                       center_y=(gr + 1) * (40 * screen_width / 800) - (20 * screen_width / 800) + (
-                                               screen_height - 600 * (screen_width / 800)),
-                                       scale=(screen_width / 800 * 40) / 64)
-                    sprite.texture = self.betone_block
-                    self.world[14 - self.ground - 1][j] = sprite
-                    self.blocks.append(sprite)
-                else:
-                    gr = self.ground
-                    sprite = ar.Sprite(center_x=(j + 1) * (40 * screen_width / 800) - (20 * screen_width / 800),
-                                       center_y=(gr + 1) * (40 * screen_width / 800) - (20 * screen_width / 800) + (
-                                               screen_height - 600 * (screen_width / 800)),
-                                       scale=(screen_width / 800 * 40) / 64)
-                    sprite.texture = self.mud_block
-                    print(j)
-                    self.world[14 - self.ground - 2][j] = sprite
-                    self.blocks.append(sprite)
+                self.world[14 - self.ground - 2][j] = self.betone_block
+
         for i in self.hills2:
             for j in range(i[0], i[1] + 1):
-                if j == i[0] or j == i[1]:
-                    gr = self.ground
-                    sprite = ar.Sprite(center_x=(j + 1) * (40 * screen_width / 800) - (20 * screen_width / 800),
-                                       center_y=(gr + 1) * (40 * screen_width / 800) - (20 * screen_width / 800) + (
-                                               screen_height - 600 * (screen_width / 800)),
-                                       scale=(screen_width / 800 * 40) / 64)
-                    sprite.texture = self.betone_block
-                    self.world[14 - self.ground - 1][j] = sprite
-                    self.blocks.append(sprite)
+                if j == i[0]:
+                    self.world[14 - self.ground - 3][j] = self.down_to_right_tube
+                elif j == i[1]:
+                    self.world[14 - self.ground - 3][j] = self.left_to_down_tube
                 else:
-                    gr = self.ground
+                    self.world[14 - self.ground - 3][j] = self.gor_tube
+        for i in range(80):
+            for j in self.hills:
+                if j[0] <= i <= j[1]:
+                    self.world[14 - self.ground][i] = self.mud_block
+        for i in range(80):
+            for j in self.hills1:
+                if j[0] <= i <= j[1]:
+                    self.world[14 - self.ground - 1][i] = self.mud_block
+        for i in range(15):
+            for j in range(80):
+                if self.world[i][j] is not None:
                     sprite = ar.Sprite(center_x=(j + 1) * (40 * screen_width / 800) - (20 * screen_width / 800),
-                                       center_y=(gr + 1) * (40 * screen_width / 800) - (20 * screen_width / 800) + (
+                                       center_y=(15 - i) * (40 * screen_width / 800) - (20 * screen_width / 800) + (
                                                screen_height - 600 * (screen_width / 800)),
                                        scale=(screen_width / 800 * 40) / 64)
-                    sprite.texture = self.mud_block
-                    self.world[14 - self.ground - 3][j] = sprite
+                    sprite.texture = self.world[i][j]
+                    self.world[i][j] = sprite
                     self.blocks.append(sprite)
 
     def on_draw(self) -> bool | None:
