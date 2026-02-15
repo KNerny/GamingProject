@@ -237,14 +237,14 @@ class Bullet(arcade.Sprite):
         self.center_x = start_x + 20
         self.center_y = start_y + 25
         self.speed = speed
-        self.max_distance = 500  # Максимальная дистанция полёта
-        self.start_x = start_x + 20  # Запоминаем стартовую позицию
+        self.max_distance = 500
+        self.start_x = start_x + 20
 
         if facing_right:
-            self.change_x = self.speed  # летит вправо
+            self.change_x = self.speed
             self.angle = 0
         else:
-            self.change_x = -self.speed  # летит влево
+            self.change_x = -self.speed
             self.angle = 180
 
         self.change_y = 0
@@ -252,7 +252,6 @@ class Bullet(arcade.Sprite):
     def update(self, delta_time: float):
         self.center_x += self.change_x * delta_time
 
-        # Проверяем, пролетела ли пуля максимальную дистанцию
         if abs(self.center_x - self.start_x) >= self.max_distance:
             self.remove_from_sprite_lists()
 
@@ -263,10 +262,8 @@ class Player(arcade.Sprite):
         self.center_x = x
         self.center_y = y
 
-        # --- Стояние с прозрачным фоном ---
         stand_image = Image.open("images_for_game/PMCStand.bmp").convert("RGBA")
 
-        # ---- делаем белый цвет прозрачным ----
         datas = stand_image.getdata()
         newData = []
         for item in datas:
@@ -276,14 +273,12 @@ class Player(arcade.Sprite):
                 newData.append(item)
         stand_image.putdata(newData)
 
-        # превращаем в texture для arcade
         buf = io.BytesIO()
         stand_image.save(buf, format="PNG")
         buf.seek(0)
         self.stand_texture = arcade.load_texture(buf)
         self.texture = self.stand_texture
 
-        # --- Бег (GIF → два списка текстур: вправо и влево) ---
         self.run_textures_right = []
         self.run_textures_left = []
 
@@ -292,25 +287,21 @@ class Player(arcade.Sprite):
             gif.seek(i)
             frame = gif.convert("RGBA")
 
-            # ---- делаем белый цвет прозрачным ----
             datas = frame.getdata()
             newData = []
             for item in datas:
-                # если почти белый, делаем прозрачным
                 if item[0] > 240 and item[1] > 240 and item[2] > 240:
                     newData.append((255, 255, 255, 0))
                 else:
                     newData.append(item)
             frame.putdata(newData)
 
-            # обычный кадр (вправо)
             buf = io.BytesIO()
             frame.save(buf, format="PNG")
             buf.seek(0)
             tex_right = arcade.load_texture(buf)
             self.run_textures_right.append(tex_right)
 
-            # зеркальный кадр (влево)
             frame_left = frame.transpose(Image.FLIP_LEFT_RIGHT)
             buf_left = io.BytesIO()
             frame_left.save(buf_left, format="PNG")
@@ -318,16 +309,16 @@ class Player(arcade.Sprite):
             tex_left = arcade.load_texture(buf_left)
             self.run_textures_left.append(tex_left)
 
-        # --- Состояние анимации ---
+
         self.state = "stand"
         self.current_frame = 0
         self.frame_timer = 0
-        self.frame_duration = 100  # мс на кадр
+        self.frame_duration = 100
 
-        # --- Направление ---
+
         self.facing_right = True
 
-    # --- переключение состояния ---
+
     def run(self):
         self.state = "run"
 
@@ -338,7 +329,7 @@ class Player(arcade.Sprite):
         else:
             self.texture = self.stand_texture.flip_horizontally()
 
-    # --- обновление анимации ---
+
     def update_animation(self, delta_time: float):
         if self.state == "run":
             self.frame_timer += delta_time * 1000
@@ -346,26 +337,214 @@ class Player(arcade.Sprite):
                 self.frame_timer = 0
                 self.current_frame = (self.current_frame + 1) % len(self.run_textures_right)
 
-                # выбираем направление
+
                 if self.facing_right:
                     self.texture = self.run_textures_right[self.current_frame]
                 else:
                     self.texture = self.run_textures_left[self.current_frame]
 
-    # --- установка направления ---
+
     def set_direction(self, right: bool):
         self.facing_right = right
         if self.state == "stand":
             self.stand()
 
 
-class Enemy(ar.Sprite):
-    def __init__(self, x, y):
-        super().__init__(center_x=x, center_y=y)
-        self.texture = ar.load_texture('1')  # Заменить на имя файла
-        self.textures = [ar.load_texture('1') for i in range(1)]  # Заменить имя файла и количество
-        self.speed = 1  # Заменить на скорость
+class Enemy(arcade.Sprite):
+    def __init__(self, x, y, scale=1.5):
+        super().__init__(scale=scale)
+        self.center_x = x
+        self.center_y = y
 
+        self.speed = 100
+        self.direction = -1
+        self.patrol_left = x - 200
+        self.patrol_right = x + 200
+
+        self.is_jumping = False
+        self.vertical_speed = 0
+        self.gravity = 1000
+        self.jump_strength = 400
+
+        self.walk_textures_right = []
+        self.walk_textures_left = []
+        self.attack_textures_right = []
+        self.attack_textures_left = []
+        self.dead_textures = []
+
+        self.state = "alive"
+        self.attack_state = "walk"
+        self.dead_animation_timer = 0
+        self.dead_animation_duration = 100
+        self.attack_timer = 0
+        self.attack_duration = 500
+
+        try:
+            gif = Image.open("images_for_game/scelet/scelet_walk.gif")
+            for i in range(gif.n_frames):
+                gif.seek(i)
+                frame = gif.convert("RGBA")
+                datas = frame.getdata()
+                newData = []
+                for item in datas:
+                    if item[0] == 0 and item[1] == 114 and item[2] == 188:
+                        newData.append((255, 255, 255, 0))
+                    else:
+                        newData.append(item)
+                frame.putdata(newData)
+                buf = io.BytesIO()
+                frame.save(buf, format="PNG")
+                buf.seek(0)
+                tex_right = arcade.load_texture(buf)
+                self.walk_textures_right.append(tex_right)
+                frame_left = frame.transpose(Image.FLIP_LEFT_RIGHT)
+                buf_left = io.BytesIO()
+                frame_left.save(buf_left, format="PNG")
+                buf_left.seek(0)
+                tex_left = arcade.load_texture(buf_left)
+                self.walk_textures_left.append(tex_left)
+
+            attack_gif = Image.open("images_for_game/scelet/scelet_attack.gif")
+            for i in range(attack_gif.n_frames):
+                attack_gif.seek(i)
+                frame = attack_gif.convert("RGBA")
+                datas = frame.getdata()
+                newData = []
+                for item in datas:
+                    if item[0] == 0 and item[1] == 114 and item[2] == 188:
+                        newData.append((255, 255, 255, 0))
+                    else:
+                        newData.append(item)
+                frame.putdata(newData)
+                buf = io.BytesIO()
+                frame.save(buf, format="PNG")
+                buf.seek(0)
+                tex_right = arcade.load_texture(buf)
+                self.attack_textures_right.append(tex_right)
+                frame_left = frame.transpose(Image.FLIP_LEFT_RIGHT)
+                buf_left = io.BytesIO()
+                frame_left.save(buf_left, format="PNG")
+                buf_left.seek(0)
+                tex_left = arcade.load_texture(buf_left)
+                self.attack_textures_left.append(tex_left)
+
+            dead_gif = Image.open("images_for_game/scelet/scelet_dead.gif")
+            for i in range(dead_gif.n_frames):
+                dead_gif.seek(i)
+                frame = dead_gif.convert("RGBA")
+                datas = frame.getdata()
+                newData = []
+                for item in datas:
+                    if item[0] == 0 and item[1] == 114 and item[2] == 188:
+                        newData.append((255, 255, 255, 0))
+                    else:
+                        newData.append(item)
+                frame.putdata(newData)
+                buf = io.BytesIO()
+                frame.save(buf, format="PNG")
+                buf.seek(0)
+                tex = arcade.load_texture(buf)
+                self.dead_textures.append(tex)
+
+        except FileNotFoundError:
+            print("Файлы скелета не найдены.")
+            img = Image.new('RGBA', (32, 32), (255, 0, 0, 0))
+            buf = io.BytesIO()
+            img.save(buf, format="PNG")
+            buf.seek(0)
+            fallback = arcade.load_texture(buf)
+            self.walk_textures_right = [fallback]
+            self.walk_textures_left = [fallback]
+            self.attack_textures_right = [fallback]
+            self.attack_textures_left = [fallback]
+            self.dead_textures = [fallback]
+
+        self.current_frame = 0
+        self.frame_timer = 0
+        self.frame_duration = 100
+        self.facing_right = False
+
+        if self.walk_textures_left:
+            self.texture = self.walk_textures_left[0]
+
+    def kill_enemy(self):
+        if self.state == "alive":
+            self.state = "dead"
+            self.current_frame = 0
+            self.frame_timer = 0
+            if self.dead_textures:
+                self.texture = self.dead_textures[0]
+
+    def attack(self):
+        if self.state == "alive" and self.attack_state == "walk":
+            self.attack_state = "attack"
+            self.current_frame = 0
+            self.frame_timer = 0
+            self.attack_timer = 0
+
+    def update(self, delta_time: float, blocks=None, player=None):
+        if self.state == "alive":
+            if self.attack_state == "walk":
+                self.center_x += self.direction * self.speed * delta_time
+                self.vertical_speed -= self.gravity * delta_time
+                self.center_y += self.vertical_speed * delta_time
+
+                if blocks:
+                    collisions = self.collides_with_list(blocks)
+                    if collisions and self.vertical_speed < 0:
+                        highest_block = max(collisions, key=lambda b: b.center_y)
+                        self.center_y = highest_block.center_y + highest_block.height / 2 + self.height / 2
+                        self.vertical_speed = 0
+                        self.is_jumping = False
+
+                if self.center_x <= self.patrol_left:
+                    self.direction = 1
+                    self.facing_right = True
+                elif self.center_x >= self.patrol_right:
+                    self.direction = -1
+                    self.facing_right = False
+
+                if player and abs(self.center_x - player.center_x) < 100 and abs(self.center_y - player.center_y) < 50:
+                    self.attack()
+
+            elif self.attack_state == "attack":
+                self.attack_timer += delta_time * 1000
+                if self.attack_timer >= self.attack_duration:
+                    self.attack_state = "walk"
+                    self.current_frame = 0
+                    self.frame_timer = 0
+
+    def update_animation(self, delta_time: float):
+        self.frame_timer += delta_time * 1000
+
+        if self.frame_timer >= self.frame_duration:
+            self.frame_timer = 0
+
+            if self.state == "alive":
+                if self.attack_state == "walk":
+                    if self.facing_right and self.walk_textures_right:
+                        textures = self.walk_textures_right
+                    elif not self.facing_right and self.walk_textures_left:
+                        textures = self.walk_textures_left
+                    else:
+                        return
+                elif self.attack_state == "attack":
+                    if self.facing_right and self.attack_textures_right:
+                        textures = self.attack_textures_right
+                    elif not self.facing_right and self.attack_textures_left:
+                        textures = self.attack_textures_left
+                    else:
+                        return
+
+                self.current_frame = (self.current_frame + 1) % len(textures)
+                self.texture = textures[self.current_frame]
+
+            elif self.state == "dead" and self.dead_textures:
+                self.current_frame += 1
+                if self.current_frame < len(self.dead_textures):
+                    self.texture = self.dead_textures[self.current_frame]
+                else:
+                    self.remove_from_sprite_lists()
 
 class GameView(ar.View):
     def __init__(self, window):
@@ -373,7 +552,6 @@ class GameView(ar.View):
         from random import randint, random
         self.window = window
         self.window.playing = True
-        # Временная камера
         self.camera = ar.camera.Camera2D()
 
         # ===== СОЛДАТ =====
@@ -402,7 +580,12 @@ class GameView(ar.View):
             print("Файл images_for_game/bullet.png не найден.")
             self.bullet_texture = None
 
+        # ===== СМЕРТЬ ИГРОКА =====
+        self.player_dead = False
+        self.death_timer = 0
+        self.death_delay = 3.0  # 3 секунды
 
+        # ==== МИР ====
         self.world = [[None] * 80 for _ in range(15)]
         self.ground = 4
         self.mud_block = ar.load_texture('textures/blocks/mud_block.png')
@@ -494,13 +677,80 @@ class GameView(ar.View):
                     self.world[i][j] = sprite
                     self.blocks.append(sprite)
 
+        self.enemy_list = arcade.SpriteList()
+
+        # Спавн врагов не ближе 100 пикселей от игрока
+        import random
+        spawn_attempts = 0
+        enemies_spawned = 0
+        max_attempts = 100
+
+        while enemies_spawned < 3 and spawn_attempts < max_attempts:
+            spawn_attempts += 1
+
+            if len(self.blocks) == 0:
+                break
+
+            block = random.choice(list(self.blocks))
+
+            block_x = block.center_x
+            block_y = block.center_y + block.height / 2 + 20
+
+            distance = abs(block_x - self.player.center_x)
+
+            if distance > 10:
+                enemy = Enemy(
+                    x=block_x,
+                    y=block_y,
+                    scale=1.5
+                )
+                self.enemy_list.append(enemy)
+                enemies_spawned += 1
+
+        while enemies_spawned < 3 and len(self.blocks) > 0:
+            block = random.choice(list(self.blocks))
+            enemy = Enemy(
+                x=block.center_x,
+                y=block.center_y + block.height / 2 + 20,
+                scale=1.5
+            )
+            self.enemy_list.append(enemy)
+            enemies_spawned += 1
+
     # ===== ОТРИСОВКА =====
     def on_draw(self) -> bool | None:
         self.clear()
         self.camera.use()
-        self.blocks.draw()  # Мир
-        self.player_list.draw()  # Солдат
-        self.bullet_list.draw()  # Пули
+        self.blocks.draw()
+        self.enemy_list.draw()
+        self.bullet_list.draw()
+
+        if not self.player_dead:
+            self.player_list.draw()
+        else:
+            # Получаем центр экрана с учетом камеры
+            center_x = self.camera.position[0] + screen_width // 2
+            center_y = self.camera.position[1] + screen_height // 2
+
+            # Текст ровно по центру
+            arcade.draw_text(
+                "ВЫ УМЕРЛИ",
+                center_x - center_x // 2,
+                center_y - center_y // 2,
+                arcade.color.RED,
+                30,
+                anchor_x="center",
+                anchor_y="center"
+            )
+            arcade.draw_text(
+                f"Возвращение в главное меню через: {int(self.death_timer) + 1}",
+                center_x - center_x // 2,
+                center_y - center_y // 4,
+                arcade.color.WHITE,
+                20,
+                anchor_x="center",
+                anchor_y="center"
+            )
         return True
 
     # ===== ОБНОВЛЕНИЕ =====
@@ -524,10 +774,8 @@ class GameView(ar.View):
         self.player.center_y += self.vertical_speed * delta_time
 
         collisions = self.player.collides_with_list(self.blocks)
-        if collisions and self.vertical_speed < 0:  # Падаем вниз
-            # Находим самый верхний блок, с которым столкнулись
+        if collisions and self.vertical_speed < 0:
             highest_block = max(collisions, key=lambda b: b.center_y)
-            # Ставим игрока на блок
             self.player.center_y = highest_block.center_y + highest_block.height / 2 + self.player.height / 2
             self.vertical_speed = 0
             self.is_jumping = False
@@ -537,21 +785,49 @@ class GameView(ar.View):
             self.vertical_speed = self.jump_strength
             self.is_jumping = True
 
-        # Простая проверка пола (на уровне земли)
+        # Проверка пола
         if self.player.center_y <= self.player.height / 2:
             self.player.center_y = self.player.height / 2
             self.vertical_speed = 0
             self.is_jumping = False
-
         # Анимация солдата
         self.player_list.update_animation(delta_time)
+
+        # Обновление врагов с проверкой на игрока
+        for enemy in self.enemy_list:
+            enemy.update(delta_time, self.blocks, self.player)
+            if not self.player_dead and enemy.attack_state == "attack" and enemy.collides_with_sprite(self.player):
+                self.player_dead = True
+                self.death_timer = self.death_delay
+                self.moving_left = False
+                self.moving_right = False
+                self.jump = False
+
+        if self.player_dead:
+            self.death_timer -= delta_time
+            if self.death_timer <= 0:
+                self.window.show_view_new(FirstScene(self.window))
+                return True
+
+        self.enemy_list.update_animation(delta_time)
+
+        # Проверка столкновений пуль с врагами
+        for bullet in self.bullet_list:
+            hit_enemies = bullet.collides_with_list(self.enemy_list)
+            if hit_enemies:
+                bullet.remove_from_sprite_lists()
+                for enemy in hit_enemies:
+                    enemy.kill_enemy()  # Запускаем анимацию смерти вместо мгновенного удаления
 
         # Обновление пуль
         self.bullet_list.update(delta_time)
 
-        # Удаление пуль за экраном
+        for bullet in self.bullet_list:
+            hit_blocks = bullet.collides_with_list(self.blocks)
+            if hit_blocks:
+                bullet.remove_from_sprite_lists()
 
-        # Обновление камеры - следует за игроком
+
         target_x = self.player.center_x
         target_y = self.player.center_y
         self.camera.position = (
@@ -561,7 +837,6 @@ class GameView(ar.View):
 
         return True
 
-    # ===== НАЖАТИЕ КЛАВИШ =====
     def on_key_press(self, symbol: int, modifiers: int) -> bool | None:
         if symbol == ar.key.ESCAPE:
             self.window.show_view_new(FirstScene(self.window))
@@ -575,7 +850,6 @@ class GameView(ar.View):
             self.jump = True
         return True
 
-    # ===== ОТПУСКАНИЕ КЛАВИШ =====
     def on_key_release(self, symbol: int, modifiers: int) -> bool | None:
         if symbol == arcade.key.A:
             self.moving_left = False
@@ -587,7 +861,6 @@ class GameView(ar.View):
             self.jump = False
         return True
 
-    # ===== НАЖАТИЕ МЫШИ =====
     def on_mouse_press(self, x: int, y: int, button: int, modifiers: int):
 
         if button == arcade.MOUSE_BUTTON_LEFT and self.bullet_texture:
@@ -660,7 +933,6 @@ class FirstScene(ar.View):
         return
 
     def on_hide(self):
-        """Вызывается когда сцена скрывается"""
         self.manager.disable()
         self.manager.clear()
 
@@ -782,7 +1054,6 @@ class Game(ar.Window):
         self.on_resize_old = self.on_resize
 
     def show_view_new(self, new_view: View) -> None:
-        """Кастомный метод для смены вида"""
         self.sub_view = self.pres_view
         self.pres_view = new_view.__class__
         self.show_view(new_view)
