@@ -1,16 +1,18 @@
-import random
 import arcade
 import io
 import arcade as ar
-from PIL import Image, ImageDraw
+import pyglet.window
+from PIL import Image
 from arcade import View
-from arcade.gui import UIManager, UIFlatButton, UILabel, UIDropdown, UISlider, UITextureButton
-from pyglet.event import EVENT_HANDLE_STATE
+from arcade.gui import UIManager, UIFlatButton, UILabel, UIDropdown, UISlider
+
 screen_width = 800
 screen_height = 600
 volume = 100
 full_screen = False
 TITLE = 'The Underworld'  # Потом заменить имя приложения
+
+enemy_count = 0
 
 
 class OptionsScene(ar.View):
@@ -95,6 +97,14 @@ class OptionsScene(ar.View):
             ],
             default=f'{screen_width}:{screen_height}',
             font_size=20 * self.scale_y
+        ) if not self.window.playing else UILabel(
+            x=464 * self.scale_x,
+            y=360 * self.scale_y,
+            width=171 * self.scale_x,
+            height=22 * self.scale_y,
+            text=f'{screen_width}:{screen_height}',
+            align='center',
+            font_size=20 * self.scale_y
         )
         self.full_screen_button = UIDropdown(
             x=530 * self.scale_x,
@@ -106,6 +116,14 @@ class OptionsScene(ar.View):
                 'Нет'
             ],
             default=str('Да' if self.window.fullscreen else 'Нет'),
+            align='center',
+            font_size=20 * self.scale_y
+        ) if not self.window.playing else UILabel(
+            x=530 * self.scale_x,
+            y=270 * self.scale_y,
+            width=40 * self.scale_x,
+            height=20 * self.scale_y,
+            text=str('Да' if self.window.fullscreen else 'Нет'),
             font_size=20 * self.scale_y
         )
         self.exit_button = UIFlatButton(
@@ -147,10 +165,12 @@ class OptionsScene(ar.View):
 
     def escape(self, event):
         self.window.show_view_new(self.window.sub_view(self.window))
+        self.on_hide()
 
     def on_key_press(self, symbol: int, modifiers: int) -> bool | None:
         if symbol == ar.key.ESCAPE:
             self.window.show_view_new(self.window.sub_view(self.window))
+        self.on_hide()
         return True
 
     def volume_change(self, event):
@@ -233,18 +253,18 @@ class OptionsScene(ar.View):
 
 class Bullet(arcade.Sprite):
     def __init__(self, texture: arcade.Texture, start_x: float, start_y: float, facing_right: bool, speed: float = 500):
-        super().__init__(texture, scale=1.0)
+        super().__init__(texture, scale=screen_width / 800)
         self.center_x = start_x + 20
-        self.center_y = start_y + 25
+        self.center_y = start_y + 25 * screen_width / 800
         self.speed = speed
-        self.max_distance = 500
-        self.start_x = start_x + 20
+        self.max_distance = 500 * screen_width / 800  # Максимальная дистанция полёта
+        self.start_x = start_x + 20  # Запоминаем стартовую позицию
 
         if facing_right:
-            self.change_x = self.speed
+            self.change_x = self.speed  # летит вправо
             self.angle = 0
         else:
-            self.change_x = -self.speed
+            self.change_x = -self.speed  # летит влево
             self.angle = 180
 
         self.change_y = 0
@@ -252,18 +272,27 @@ class Bullet(arcade.Sprite):
     def update(self, delta_time: float):
         self.center_x += self.change_x * delta_time
 
+        # Проверяем, пролетела ли пуля максимальную дистанцию
         if abs(self.center_x - self.start_x) >= self.max_distance:
             self.remove_from_sprite_lists()
 
 
 class Player(arcade.Sprite):
     def __init__(self, x, y, scale=1.5):
-        super().__init__(scale=scale)
+        super().__init__(scale=1.5 * screen_width / 800)
         self.center_x = x
         self.center_y = y
 
+        self.step_sounds = [
+            ar.load_sound('sounds/footstep on concrete 1.mp3'),
+            ar.load_sound('sounds/footstep on concrete 2.mp3'),
+            ar.load_sound('sounds/footstep on concrete 3.mp3')
+        ]
+
+        # --- Стояние с прозрачным фоном ---
         stand_image = Image.open("images_for_game/PMCStand.bmp").convert("RGBA")
 
+        # ---- делаем белый цвет прозрачным ----
         datas = stand_image.getdata()
         newData = []
         for item in datas:
@@ -273,12 +302,14 @@ class Player(arcade.Sprite):
                 newData.append(item)
         stand_image.putdata(newData)
 
+        # превращаем в texture для arcade
         buf = io.BytesIO()
         stand_image.save(buf, format="PNG")
         buf.seek(0)
         self.stand_texture = arcade.load_texture(buf)
         self.texture = self.stand_texture
 
+        # --- Бег (GIF → два списка текстур: вправо и влево) ---
         self.run_textures_right = []
         self.run_textures_left = []
 
@@ -287,21 +318,25 @@ class Player(arcade.Sprite):
             gif.seek(i)
             frame = gif.convert("RGBA")
 
+            # ---- делаем белый цвет прозрачным ----
             datas = frame.getdata()
             newData = []
             for item in datas:
+                # если почти белый, делаем прозрачным
                 if item[0] > 240 and item[1] > 240 and item[2] > 240:
                     newData.append((255, 255, 255, 0))
                 else:
                     newData.append(item)
             frame.putdata(newData)
 
+            # обычный кадр (вправо)
             buf = io.BytesIO()
             frame.save(buf, format="PNG")
             buf.seek(0)
             tex_right = arcade.load_texture(buf)
             self.run_textures_right.append(tex_right)
 
+            # зеркальный кадр (влево)
             frame_left = frame.transpose(Image.FLIP_LEFT_RIGHT)
             buf_left = io.BytesIO()
             frame_left.save(buf_left, format="PNG")
@@ -309,16 +344,17 @@ class Player(arcade.Sprite):
             tex_left = arcade.load_texture(buf_left)
             self.run_textures_left.append(tex_left)
 
-
+        # --- Состояние анимации ---
         self.state = "stand"
         self.current_frame = 0
         self.frame_timer = 0
-        self.frame_duration = 100
+        self.frame_duration = 100  # мс на кадр
+        self.timer = 0
 
-
+        # --- Направление ---
         self.facing_right = True
 
-
+    # --- переключение состояния ---
     def run(self):
         self.state = "run"
 
@@ -329,21 +365,26 @@ class Player(arcade.Sprite):
         else:
             self.texture = self.stand_texture.flip_horizontally()
 
-
+    # --- обновление анимации ---
     def update_animation(self, delta_time: float):
         if self.state == "run":
             self.frame_timer += delta_time * 1000
+            self.timer += delta_time
             if self.frame_timer >= self.frame_duration:
                 self.frame_timer = 0
                 self.current_frame = (self.current_frame + 1) % len(self.run_textures_right)
 
-
+                # выбираем направление
                 if self.facing_right:
                     self.texture = self.run_textures_right[self.current_frame]
                 else:
                     self.texture = self.run_textures_left[self.current_frame]
+            if self.timer >= .45:
+                from random import choice
+                ar.play_sound(choice(self.step_sounds), volume=volume / 100)
+                self.timer = 0
 
-
+    # --- установка направления ---
     def set_direction(self, right: bool):
         self.facing_right = right
         if self.state == "stand":
@@ -352,11 +393,11 @@ class Player(arcade.Sprite):
 
 class Enemy(arcade.Sprite):
     def __init__(self, x, y, scale=1.5):
-        super().__init__(scale=scale)
+        super().__init__(scale=scale * screen_width / 800)
         self.center_x = x
         self.center_y = y
 
-        self.speed = 100
+        self.speed = 100 * screen_width / 800
         self.direction = -1
         self.patrol_left = x - 200
         self.patrol_right = x + 200
@@ -483,6 +524,9 @@ class Enemy(arcade.Sprite):
             self.attack_timer = 0
 
     def update(self, delta_time: float, blocks=None, player=None):
+        if 0 >= self.center_x or self.center_x >= screen_width * 4:
+            self.direction = -self.direction
+            self.facing_right = self.direction == 1
         if self.state == "alive":
             if self.attack_state == "walk":
                 self.center_x += self.direction * self.speed * delta_time
@@ -546,13 +590,26 @@ class Enemy(arcade.Sprite):
                 else:
                     self.remove_from_sprite_lists()
 
+
 class GameView(ar.View):
     def __init__(self, window):
         super().__init__(window)
         from random import randint, random
         self.window = window
         self.window.playing = True
-        self.camera = ar.camera.Camera2D()
+
+        self.window.set_mouse_visible(False)
+
+        self.death_zombie_sound = ar.load_sound('sounds/Zombie_death.ogg')
+        self.death_sound = ar.load_sound('sounds/tmp_7901-951678082.mp3')
+        self.shot_sounds = [
+            ar.load_sound('sounds/warning-shot-in-the-air.mp3'),
+            ar.load_sound('sounds/loud-pistol-shot.mp3'),
+            ar.load_sound('sounds/accurate-control-shot.mp3')
+        ]
+
+        self.camera = ar.camera.Camera2D(zoom=600 / screen_height)
+        self.camera.position = screen_width / 2, screen_height / 2
 
         # ===== СОЛДАТ =====
         self.player = Player(screen_width // 2, screen_height // 2, scale=1.5)
@@ -561,16 +618,17 @@ class GameView(ar.View):
 
         self.player_list = arcade.SpriteList()
         self.player_list.append(self.player)
+        self.new_level_timer = 3
 
         # ===== ФИЗИКА =====
         self.moving_left = False
         self.moving_right = False
         self.jump = False
-        self.speed = 200
+        self.speed = 200 * screen_width / 800
         self.is_jumping = False
         self.vertical_speed = 0
-        self.gravity = 1000
-        self.jump_strength = 400
+        self.gravity = 1000 * screen_width / 800
+        self.jump_strength = 400 * screen_width / 800
 
         # ===== ПУЛИ =====
         self.bullet_list = arcade.SpriteList()
@@ -717,6 +775,9 @@ class GameView(ar.View):
             self.enemy_list.append(enemy)
             enemies_spawned += 1
 
+        global enemy_count
+        enemy_count = len(self.enemy_list)
+
     # ===== ОТРИСОВКА =====
     def on_draw(self) -> bool | None:
         self.clear()
@@ -725,29 +786,55 @@ class GameView(ar.View):
         self.enemy_list.draw()
         self.bullet_list.draw()
 
+        global enemy_count
+        if enemy_count == 0:
+            # Получаем центр экрана с учетом камеры
+            center_x = self.player.center_x
+            center_y = self.player.center_y
+
+            # Текст ровно по центру
+            arcade.draw_text(
+                "Переход на следующий уровень",
+                center_x,
+                center_y + 100 * screen_width / 800,
+                arcade.color.RED,
+                30 * screen_width / 800,
+                anchor_x="center",
+                anchor_y="center"
+            )
+            arcade.draw_text(
+                f"Через: {int(self.new_level_timer) + 1}",
+                center_x,
+                center_y - center_y // 2 + 100 * screen_width / 800,
+                arcade.color.WHITE,
+                20 * screen_width / 800,
+                anchor_x="center",
+                anchor_y="center"
+            )
+
         if not self.player_dead:
             self.player_list.draw()
         else:
             # Получаем центр экрана с учетом камеры
-            center_x = self.camera.position[0] + screen_width // 2
-            center_y = self.camera.position[1] + screen_height // 2
+            center_x = self.player_xy[0]
+            center_y = self.player_xy[1]
 
             # Текст ровно по центру
             arcade.draw_text(
                 "ВЫ УМЕРЛИ",
-                center_x - center_x // 2,
-                center_y - center_y // 2,
+                center_x,
+                center_y + 100 * screen_width / 800,
                 arcade.color.RED,
-                30,
+                30 * screen_width / 800,
                 anchor_x="center",
                 anchor_y="center"
             )
             arcade.draw_text(
                 f"Возвращение в главное меню через: {int(self.death_timer) + 1}",
-                center_x - center_x // 2,
-                center_y - center_y // 4,
+                center_x,
+                center_y - center_y // 2 + 100 * screen_width / 800,
                 arcade.color.WHITE,
-                20,
+                20 * screen_width / 800,
                 anchor_x="center",
                 anchor_y="center"
             )
@@ -756,10 +843,10 @@ class GameView(ar.View):
     # ===== ОБНОВЛЕНИЕ =====
     def on_update(self, delta_time: float) -> bool | None:
         # Движение влево-вправо
-        if self.moving_left:
+        if self.moving_left and self.player.center_x > 0:
             self.player.center_x -= self.speed * delta_time
             self.player.set_direction(False)
-        if self.moving_right:
+        if self.moving_right and self.player.center_x < screen_width * 4:
             self.player.center_x += self.speed * delta_time
             self.player.set_direction(True)
 
@@ -796,7 +883,10 @@ class GameView(ar.View):
         # Обновление врагов с проверкой на игрока
         for enemy in self.enemy_list:
             enemy.update(delta_time, self.blocks, self.player)
-            if not self.player_dead and enemy.attack_state == "attack" and enemy.collides_with_sprite(self.player):
+            if (not self.player_dead and enemy.attack_state == "attack" and enemy.collides_with_sprite(self.player) and
+                    enemy.state != 'dead'):
+                ar.play_sound(self.death_sound, volume=volume / 100)
+                self.player_xy = self.player.center_x, self.player.center_y
                 self.player_dead = True
                 self.death_timer = self.death_delay
                 self.moving_left = False
@@ -807,9 +897,17 @@ class GameView(ar.View):
             self.death_timer -= delta_time
             if self.death_timer <= 0:
                 self.window.show_view_new(FirstScene(self.window))
+                self.window.set_mouse_visible(True)
+                self.window.sub_view = FirstScene
                 return True
 
         self.enemy_list.update_animation(delta_time)
+
+        for i in self.enemy_list:
+            if i.center_y < 0:
+                self.enemy_list.remove(i)
+                global enemy_count
+                enemy_count -= 1
 
         # Проверка столкновений пуль с врагами
         for bullet in self.bullet_list:
@@ -817,6 +915,10 @@ class GameView(ar.View):
             if hit_enemies:
                 bullet.remove_from_sprite_lists()
                 for enemy in hit_enemies:
+                    if enemy.state != 'dead':
+                        enemy_count -= 1
+                        ar.sound.play_sound(self.death_zombie_sound, volume=volume / 100)
+
                     enemy.kill_enemy()  # Запускаем анимацию смерти вместо мгновенного удаления
 
         # Обновление пуль
@@ -827,19 +929,39 @@ class GameView(ar.View):
             if hit_blocks:
                 bullet.remove_from_sprite_lists()
 
-
         target_x = self.player.center_x
         target_y = self.player.center_y
-        self.camera.position = (
-            self.camera.position[0] + (target_x - self.camera.position[0]) * 0.1,
-            self.camera.position[1] + (target_y - self.camera.position[1]) * 0.1
-        )
+        if not self.player_dead:
+            if target_x < screen_width / 2:
+                self.camera.position = (
+                    screen_width / 2,
+                    self.camera.position[1]
+                )
+            elif target_x > screen_width / 2 + screen_width * 3:
+                self.camera.position = (
+                    screen_width / 2 + screen_width * 3,
+                    self.camera.position[1]
+                )
+            else:
+                self.camera.position = (
+                    self.camera.position[0] + (target_x - self.camera.position[0]) * 0.1,
+                    self.camera.position[1]
+                )
+
+        if not enemy_count:
+            self.new_level_timer -= delta_time
+
+        if self.new_level_timer <= 0:
+            self.window.show_view_new(GameView(self.window))
 
         return True
 
+    # ===== НАЖАТИЕ КЛАВИШ =====
     def on_key_press(self, symbol: int, modifiers: int) -> bool | None:
         if symbol == ar.key.ESCAPE:
             self.window.show_view_new(FirstScene(self.window))
+            self.window.set_mouse_visible(True)
+            self.on_hide_view()
         elif symbol == arcade.key.A:
             self.moving_left = True
             self.player.set_direction(False)
@@ -850,6 +972,7 @@ class GameView(ar.View):
             self.jump = True
         return True
 
+    # ===== ОТПУСКАНИЕ КЛАВИШ =====
     def on_key_release(self, symbol: int, modifiers: int) -> bool | None:
         if symbol == arcade.key.A:
             self.moving_left = False
@@ -861,17 +984,21 @@ class GameView(ar.View):
             self.jump = False
         return True
 
+    # ===== НАЖАТИЕ МЫШИ =====
     def on_mouse_press(self, x: int, y: int, button: int, modifiers: int):
 
-        if button == arcade.MOUSE_BUTTON_LEFT and self.bullet_texture:
+        if button == arcade.MOUSE_BUTTON_LEFT and self.bullet_texture and not self.player_dead:
+            from random import choice
+            ar.sound.play_sound(choice(self.shot_sounds), volume=volume / 4 / 100)
             bullet = Bullet(
                 texture=self.bullet_texture,
                 start_x=self.player.center_x,
                 start_y=self.player.center_y,
                 facing_right=self.player.facing_right,
-                speed=600
+                speed=600 * screen_width / 800
             )
             self.bullet_list.append(bullet)
+
 
 class FirstScene(ar.View):
     def __init__(self, window):
@@ -948,11 +1075,13 @@ class FirstScene(ar.View):
 
     def play(self, event):
         self.window.show_view_new(GameView(self.window))
+        self.on_hide()
 
     def on_key_press(self, symbol: int, modifiers: int) -> bool | None:
         if symbol == ar.key.ESCAPE:
             if self.window.playing:
                 self.window.show_view_new(GameView(self.window))
+                self.on_hide()
                 return True
             self.exit(1)
         return True
@@ -1008,8 +1137,6 @@ class AutorsScene(ar.View):
         self.manager.add(self.second_autor_label)
 
     def on_draw(self) -> bool | None:
-        from random import randint
-        import time
         self.clear()
         self.manager.draw()
 
@@ -1041,10 +1168,12 @@ class AutorsScene(ar.View):
 class Game(ar.Window):
 
     def __init__(self):
-        super().__init__(screen_width, screen_height, TITLE)
+        super().__init__(screen_width, screen_height, TITLE, style=pyglet.window.Window.WINDOW_STYLE_BORDERLESS,
+                         center_window=True)
         arcade.set_background_color(arcade.color.TEA_GREEN)
 
         self.playing = False
+
         self.first_scene = FirstScene(self)
         self.options_view = OptionsScene(self)
         self.sub_view = self.first_scene.__class__
