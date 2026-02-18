@@ -170,7 +170,7 @@ class OptionsScene(ar.View):
     def on_key_press(self, symbol: int, modifiers: int) -> bool | None:
         if symbol == ar.key.ESCAPE:
             self.window.show_view_new(self.window.sub_view(self.window))
-        self.on_hide()
+            self.on_hide()
         return True
 
     def volume_change(self, event):
@@ -1069,9 +1069,11 @@ class FirstScene(ar.View):
     def options(self, event):
         self.window.options_view = OptionsScene(self.window)
         self.window.show_view_new(self.window.options_view)
+        self.on_hide()
 
     def autors(self, event):
         self.window.show_view_new(AutorsScene(self.window))
+        self.on_hide()
 
     def play(self, event):
         self.window.show_view_new(GameView(self.window))
